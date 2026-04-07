@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'battle_room_screen.dart';
 import 'battle_service.dart';
 import 'coin_service.dart';
+import 'navigation_controller.dart';
 import 'screen_constants.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -105,12 +106,62 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startBattle(int entryFee) async {
+    final existingBattleId = await BattleService.findLiveBattleId();
+    if (existingBattleId != null) {
+      if (!mounted) return;
+      final openRoom = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Room Already Live'),
+            content: const Text(
+              'A room is already live. Exit that room before joining another.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Later'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Open Room'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (openRoom == true && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BattleRoomScreen(battleId: existingBattleId),
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       final battleId = await BattleService.createOrJoinBattle(entryFee: entryFee);
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BattleRoomScreen(battleId: battleId),
+        ),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      final message = e.code == 'active-room-exists'
+          ? 'A room is already live. Exit that room before joining another.'
+          : (e.message ?? 'Unable to create room right now.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(message),
         ),
       );
     } catch (e) {
@@ -268,88 +319,106 @@ class _TournamentBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
+    return AspectRatio(
+      aspectRatio: 1.5,
+      child: Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFF6A38), primaryColor, Color(0xFF8F2A0A)],
-        ),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: const [
           BoxShadow(
             color: Color(0x55FF4B11),
-            blurRadius: 26,
+            blurRadius: 28,
             offset: Offset(0, 14),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Mega Tournament',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Win Big Rewards',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Join Now tapped'),
-                        behavior: SnackBarBehavior.floating,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/bg.png',
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.medium,
+                errorBuilder: (context, error, stackTrace) {
+                  return const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF2A120B),
+                          Color(0xFF631C09),
+                          Color(0xFFB2380C),
+                        ],
                       ),
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: primaryColor,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: const Text(
-                    'Join Now',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                  );
+                },
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.06),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.34),
+                    ],
+                    stops: const [0, 0.45, 1],
                   ),
                 ),
-              ],
-            ),
+              ),
+              Positioned(
+                top: 10,
+                right: 18,
+                child: SizedBox(
+                  height: 52,
+                  width: 52,
+                  child: Image.asset(
+                    'assets/icon.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.sports_esports_rounded,
+                        color: Colors.white,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Play, win & earn coins as you dominate your rivals.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.88),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: () => AppTabController.goTo(1),
+                      child: Text(
+                        'See battles >',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: primaryColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Container(
-            height: 74,
-            width: 74,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-            ),
-            child: const Icon(
-              Icons.emoji_events_rounded,
-              color: Colors.white,
-              size: 34,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -546,6 +615,7 @@ class _BattleRoomTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    // final playerIds = List<String>.from(data['playerIds'] as List<dynamic>? ?? []);
     final players = Map<String, dynamic>.from(
       (data['players'] as Map<String, dynamic>?) ?? <String, dynamic>{},
     );
@@ -558,6 +628,7 @@ class _BattleRoomTile extends StatelessWidget {
       }
     }
     final status = data['status'] as String? ?? 'waiting';
+    final canExit = uid != null && (status == 'waiting' || status == 'matched');
     return InkWell(
       onTap: () {
         Navigator.of(context).push(
@@ -576,52 +647,128 @@ class _BattleRoomTile extends StatelessWidget {
               : Colors.grey.shade100,
           border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              height: 52,
-              width: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: [
-                    primaryColor.withValues(alpha: 0.9),
-                    const Color(0xFFFF7B4D),
-                  ],
-                ),
-              ),
-              child: const Icon(Icons.shield_rounded, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    opponentName,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+            Row(
+              children: [
+                Container(
+                  height: 52,
+                  width: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: [
+                        primaryColor.withValues(alpha: 0.9),
+                        const Color(0xFFFF7B4D),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Entry Fee: ${(data['entryFee'] as num?)?.toInt() ?? 0} coins',
+                  child: const Icon(Icons.shield_rounded, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 82),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          opponentName,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Entry Fee: ${(data['entryFee'] as num?)?.toInt() ?? 0} coins',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              top: -6,
+              right: -6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (canExit)
+                    IconButton(
+                      onPressed: () async {
+                        final shouldExit = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) {
+                            return AlertDialog(
+                              title: Text(
+                                status == 'matched' ? 'Exit Room?' : 'Cancel Room?',
+                              ),
+                              content: Text(
+                                status == 'matched'
+                                    ? 'Leave this matched room? If you paid entry, your coins will be refunded.'
+                                    : 'No opponent has joined yet. Delete this room?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                                  child: const Text('No'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: primaryColor,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: Text(status == 'matched' ? 'Exit' : 'Delete'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (shouldExit != true) return;
+
+                        try {
+                          await BattleService.leaveBattle(battleId);
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              behavior: SnackBarBehavior.floating,
+                              content: Text(
+                                status == 'matched'
+                                    ? 'Room exited successfully'
+                                    : 'Waiting room deleted',
+                              ),
+                            ),
+                          );
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              behavior: SnackBarBehavior.floating,
+                              content: Text('$e'),
+                            ),
+                          );
+                        }
+                      },
+                      tooltip: status == 'matched' ? 'Exit room' : 'Delete waiting room',
+                      icon: const Icon(Icons.close_rounded),
+                      color: Colors.redAccent,
+                    )
+                  else
+                    const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Text(
+                      status.toUpperCase(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
                   ),
                 ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: primaryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                status.toUpperCase(),
-                style: const TextStyle(
-                  color: primaryColor,
-                  fontWeight: FontWeight.w800,
-                ),
               ),
             ),
           ],
