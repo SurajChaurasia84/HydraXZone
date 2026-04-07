@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../firebase_options.dart';
 import 'coins_screen.dart';
 import 'home_screen.dart';
+import 'navigation_controller.dart';
 import 'onboarding_screen.dart';
 import 'profile_screen.dart';
 import 'screen_constants.dart';
@@ -87,6 +88,36 @@ class _AppState extends State<App> {
         unselectedItemColor: isDark ? Colors.white70 : Colors.black54,
         backgroundColor: background,
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _FastFadePageTransitionsBuilder(),
+          TargetPlatform.iOS: _FastFadePageTransitionsBuilder(),
+          TargetPlatform.linux: _FastFadePageTransitionsBuilder(),
+          TargetPlatform.macOS: _FastFadePageTransitionsBuilder(),
+          TargetPlatform.windows: _FastFadePageTransitionsBuilder(),
+        },
+      ),
+    );
+  }
+}
+
+class _FastFadePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FastFadePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOut,
+      ),
+      child: child,
     );
   }
 }
@@ -357,10 +388,26 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _currentIndex = 0;
+  @override
+  void initState() {
+    super.initState();
+    AppTabController.currentIndex.addListener(_handleTabChange);
+  }
+
+  @override
+  void dispose() {
+    AppTabController.currentIndex.removeListener(_handleTabChange);
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = AppTabController.currentIndex.value;
     final screens = [
       const HomeScreen(),
       const SimpleScreen(title: 'Battles'),
@@ -373,7 +420,7 @@ class _AppShellState extends State<AppShell> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemOverlayStyle(background),
       child: Scaffold(
-        body: IndexedStack(index: _currentIndex, children: screens),
+        body: IndexedStack(index: currentIndex, children: screens),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: background,
@@ -393,8 +440,8 @@ class _AppShellState extends State<AppShell> {
             ],
           ),
           child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) => setState(() => _currentIndex = index),
+            currentIndex: currentIndex,
+            onTap: AppTabController.goTo,
             items: [
               BottomNavigationBarItem(
                 icon: const Icon(Icons.home_outlined),
