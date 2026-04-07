@@ -31,6 +31,15 @@ class BattleService {
       );
     }
 
+    final existingBattleId = await _findLiveBattleId(user.uid);
+    if (existingBattleId != null) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'active-room-exists',
+        message: 'A room is already live. Exit that room before joining another.',
+      );
+    }
+
     final userSnap = await _userRef.get();
     final userData = userSnap.data() ?? <String, dynamic>{};
     final displayName = ((userData['username'] as String?)?.trim().isNotEmpty == true)
@@ -90,6 +99,32 @@ class BattleService {
     });
 
     return battleRef.id;
+  }
+
+  static Future<String?> findLiveBattleId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    return _findLiveBattleId(user.uid);
+  }
+
+  static Future<String?> _findLiveBattleId(String uid) async {
+    final snapshot = await _battles
+        .where('playerIds', arrayContains: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final status = data['status'] as String? ?? 'waiting';
+      final dismissedBy = List<String>.from(data['dismissedBy'] as List<dynamic>? ?? []);
+      final isLive = status == 'waiting' || status == 'matched' || status == 'ongoing';
+      if (isLive && !dismissedBy.contains(uid)) {
+        return doc.id;
+      }
+    }
+
+    return null;
   }
 
   static Future<bool> _tryJoinWaitingBattle({
@@ -289,6 +324,133 @@ class BattleService {
     await _battles.doc(battleId).set({
       'dismissedBy': FieldValue.arrayUnion([user.uid]),
     }, SetOptions(merge: true));
+  }
+
+  static Future<void> cancelWaitingBattle(String battleId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'unauthenticated',
+        message: 'Please sign in again.',
+      );
+    }
+
+    final battleRef = _battles.doc(battleId);
+    await _firestore.runTransaction<void>((transaction) async {
+      final battleSnap = await transaction.get(battleRef);
+      final battle = battleSnap.data();
+      if (battle == null) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'not-found',
+          message: 'Battle room not found.',
+        );
+      }
+
+      final status = battle['status'] as String? ?? 'waiting';
+      final createdBy = battle['createdBy'] as String? ?? '';
+      final playerIds = List<String>.from(battle['playerIds'] as List<dynamic>? ?? []);
+
+      if (status != 'waiting' || createdBy != user.uid || playerIds.length > 1) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'failed-precondition',
+          message: 'This room can no longer be cancelled.',
+        );
+      }
+
+      transaction.delete(battleRef);
+    });
+  }
+
+  static Future<void> leaveBattle(String battleId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw FirebaseException(
+        plugin: 'firebase_auth',
+        code: 'unauthenticated',
+        message: 'Please sign in again.',
+      );
+    }
+
+    final battleRef = _battles.doc(battleId);
+    final userRef = _users.doc(user.uid);
+
+    await _firestore.runTransaction<void>((transaction) async {
+      final battleSnap = await transaction.get(battleRef);
+      final battle = battleSnap.data();
+      if (battle == null) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'not-found',
+          message: 'Battle room not found.',
+        );
+      }
+
+      final status = battle['status'] as String? ?? 'waiting';
+      if (status != 'waiting' && status != 'matched') {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'failed-precondition',
+          message: 'This room cannot be exited right now.',
+        );
+      }
+
+      final playerIds = List<String>.from(battle['playerIds'] as List<dynamic>? ?? []);
+      if (!playerIds.contains(user.uid)) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'failed-precondition',
+          message: 'You are not part of this room.',
+        );
+      }
+
+      final players = Map<String, dynamic>.from(
+        (battle['players'] as Map<String, dynamic>?) ?? <String, dynamic>{},
+      );
+      final currentPlayer = Map<String, dynamic>.from(
+        (players[user.uid] as Map<String, dynamic>?) ?? <String, dynamic>{},
+      );
+      final entryFee = (battle['entryFee'] as num?)?.toInt() ?? 0;
+      final hadPaid = currentPlayer['entryPaid'] == true;
+
+      if (entryFee > 0 && hadPaid) {
+        final userSnap = await transaction.get(userRef);
+        final userData = userSnap.data() ?? <String, dynamic>{};
+        final currentCoins = (userData['coins'] as num?)?.toInt() ?? 0;
+        transaction.set(userRef, {
+          'coins': currentCoins + entryFee,
+        }, SetOptions(merge: true));
+        final historyRef = userRef.collection('coin_history').doc();
+        transaction.set(historyRef, {
+          'amount': entryFee,
+          'title': 'Battle exit refund',
+          'type': 'battle_refund',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      players.remove(user.uid);
+      final remainingPlayerIds = playerIds.where((id) => id != user.uid).toList();
+
+      if (remainingPlayerIds.isEmpty) {
+        transaction.delete(battleRef);
+        return;
+      }
+
+      transaction.set(battleRef, {
+        'createdBy': remainingPlayerIds.first,
+        'status': 'waiting',
+        'playerIds': remainingPlayerIds,
+        'players': players,
+        'startPlayerIds': <String>[],
+        'startedAt': null,
+        'expiresAt': null,
+        'entryDeducted': false,
+        'resultText': 'Waiting for opponent',
+      }, SetOptions(merge: true));
+    });
   }
 
   static Future<void> uploadBattleProof({
