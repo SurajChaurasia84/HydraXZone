@@ -86,9 +86,20 @@ class _BattleRoomScreenState extends State<BattleRoomScreen> {
         final recordingDone = (me['recordingUrl'] as String?)?.isNotEmpty == true;
         final canUpload =
             status == 'ongoing' || status == 'pending_admin' || status == 'review';
+        final canExitRoom = status == 'waiting' || status == 'matched';
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Battle Room')),
+          appBar: AppBar(
+            title: const Text('Battle Room'),
+            actions: [
+              if (canExitRoom)
+                IconButton(
+                  onPressed: () => _confirmExitRoom(status),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: status == 'matched' ? 'Exit room' : 'Delete waiting room',
+                ),
+            ],
+          ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
             children: [
@@ -227,6 +238,60 @@ class _BattleRoomScreenState extends State<BattleRoomScreen> {
     _resolveTimer = Timer(timeLeft + const Duration(seconds: 1), () {
       BattleService.resolveBattleIfPossible(widget.battleId);
     });
+  }
+
+  Future<void> _confirmExitRoom(String status) async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(status == 'matched' ? 'Exit Room?' : 'Cancel Room?'),
+          content: Text(
+            status == 'matched'
+                ? 'Leave this matched room? If you paid entry, your coins will be refunded.'
+                : 'No opponent has joined yet. Delete this room?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('No'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(status == 'matched' ? 'Exit' : 'Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldExit != true || !mounted) return;
+
+    try {
+      await BattleService.leaveBattle(widget.battleId);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            status == 'matched' ? 'Room exited successfully' : 'Waiting room deleted',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('$e'),
+        ),
+      );
+    }
   }
 
   Future<void> _pickAndUpload(BattleProofType type) async {
