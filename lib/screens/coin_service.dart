@@ -1,8 +1,16 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class CoinService {
   static const int signupBonus = 500;
+  static const int dailyOpenReward = 25;
+  static const int adReward = 40;
+  static const int checkInGoalDays = 7;
+  static const int checkInGoalReward = 50;
+
+  static final Random _random = Random();
 
   static DocumentReference<Map<String, dynamic>>? get _userRef {
     final user = FirebaseAuth.instance.currentUser;
@@ -25,26 +33,207 @@ class CoinService {
     });
   }
 
-  static Future<void> addCoins(int amount) async {
-    if (amount <= 0) return;
+  static Stream<Map<String, dynamic>?> walletStream() {
     final ref = _userRef;
-    if (ref == null) return;
-
-    await ref.set({
-      'coins': FieldValue.increment(amount),
-    }, SetOptions(merge: true));
+    if (ref == null) {
+      return const Stream<Map<String, dynamic>?>.empty();
+    }
+    return ref.snapshots().map((snapshot) => snapshot.data());
   }
 
-  static Future<void> useCoins(int amount) async {
+  static Stream<List<CoinHistoryEntry>> historyStream() {
+    final ref = _userRef;
+    if (ref == null) {
+      return const Stream<List<CoinHistoryEntry>>.empty();
+    }
+
+    return ref
+        .collection('coin_history')
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => CoinHistoryEntry.fromMap(doc.data()))
+              .toList(),
+        );
+  }
+
+  static Future<void> addCoins(
+    int amount, {
+    String title = 'Reward added',
+    String type = 'reward',
+  }) async {
     if (amount <= 0) return;
     final ref = _userRef;
     if (ref == null) return;
 
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
+    await _applyDelta(
+      ref: ref,
+      amount: amount,
+      title: title,
+      type: type,
+      enforceBalance: false,
+    );
+  }
+
+  static Future<void> useCoins(
+    int amount, {
+    String title = 'Coins used',
+    String type = 'spent',
+  }) async {
+    if (amount <= 0) return;
+    final ref = _userRef;
+    if (ref == null) return;
+
+    await _applyDelta(
+      ref: ref,
+      amount: -amount,
+      title: title,
+      type: type,
+      enforceBalance: true,
+    );
+  }
+
+  static Future<int> claimDailyOpenReward() {
+    final ref = _userRef;
+    if (ref == null) return Future.value(0);
+
+    return _claimDailyReward(
+      ref: ref,
+      rewardKey: 'lastOpenRewardAt',
+      amount: dailyOpenReward,
+      title: 'Daily open reward',
+      type: 'daily_open',
+    );
+  }
+
+  static Future<int> claimAdReward() {
+    final ref = _userRef;
+    if (ref == null) return Future.value(0);
+
+    return _claimDailyReward(
+      ref: ref,
+      rewardKey: 'lastAdRewardAt',
+      amount: adReward,
+      title: 'Ad reward',
+      type: 'ad_reward',
+    );
+  }
+
+  static Future<int> claimDailySpin() {
+    final ref = _userRef;
+    if (ref == null) return Future.value(0);
+    final amount = [15, 20, 25, 30, 40, 60, 100][_random.nextInt(7)];
+
+    return _claimDailyReward(
+      ref: ref,
+      rewardKey: 'lastSpinAt',
+      amount: amount,
+      title: 'Daily spin reward',
+      type: 'daily_spin',
+    );
+  }
+
+  static Future<int> claimCheckInReward() {
+    final ref = _userRef;
+    if (ref == null) return Future.value(0);
+
+    return FirebaseFirestore.instance.runTransaction<int>((transaction) async {
       final snapshot = await transaction.get(ref);
-      final data = snapshot.data();
-      final currentCoins = (data?['coins'] as num?)?.toInt() ?? 0;
-      if (currentCoins < amount) {
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final now = DateTime.now();
+      final lastCheckIn = (data['lastCheckInAt'] as Timestamp?)?.toDate();
+
+      if (lastCheckIn != null && _isSameDay(lastCheckIn, now)) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'already-claimed',
+          message: 'Today check-in already claimed.',
+        );
+      }
+
+      final previousDay = now.subtract(const Duration(days: 1));
+      final currentStreak = (data['checkInStreak'] as num?)?.toInt() ?? 0;
+      final nextStreak = lastCheckIn != null && _isSameDay(lastCheckIn, previousDay)
+          ? currentStreak + 1
+          : 1;
+      final completedCycle = nextStreak >= checkInGoalDays;
+      final amount = completedCycle ? checkInGoalReward : 0;
+      final currentCoins = (data['coins'] as num?)?.toInt() ?? 0;
+      final historyRef = amount > 0 ? ref.collection('coin_history').doc() : null;
+
+      transaction.set(ref, {
+        'coins': currentCoins + amount,
+        'checkInStreak': completedCycle ? 0 : nextStreak,
+        'lastCheckInAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+      if (historyRef != null) {
+        transaction.set(historyRef, {
+          'amount': amount,
+          'title': '7 day check-in reward',
+          'type': 'check_in',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return amount;
+    });
+  }
+
+  static Future<int> _claimDailyReward({
+    required DocumentReference<Map<String, dynamic>> ref,
+    required String rewardKey,
+    required int amount,
+    required String title,
+    required String type,
+  }) async {
+    return FirebaseFirestore.instance.runTransaction<int>((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final now = DateTime.now();
+      final lastClaim = (data[rewardKey] as Timestamp?)?.toDate();
+
+      if (lastClaim != null && _isSameDay(lastClaim, now)) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'already-claimed',
+          message: 'Reward already claimed today.',
+        );
+      }
+
+      final currentCoins = (data['coins'] as num?)?.toInt() ?? 0;
+      final historyRef = ref.collection('coin_history').doc();
+
+      transaction.set(ref, {
+        'coins': currentCoins + amount,
+        rewardKey: Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
+      transaction.set(historyRef, {
+        'amount': amount,
+        'title': title,
+        'type': type,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return amount;
+    });
+  }
+
+  static Future<void> _applyDelta({
+    required DocumentReference<Map<String, dynamic>> ref,
+    required int amount,
+    required String title,
+    required String type,
+    required bool enforceBalance,
+  }) async {
+    await FirebaseFirestore.instance.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final currentCoins = (data['coins'] as num?)?.toInt() ?? 0;
+      final nextCoins = currentCoins + amount;
+
+      if (enforceBalance && nextCoins < 0) {
         throw FirebaseException(
           plugin: 'cloud_firestore',
           code: 'insufficient-coins',
@@ -52,9 +241,43 @@ class CoinService {
         );
       }
 
+      final historyRef = ref.collection('coin_history').doc();
       transaction.set(ref, {
-        'coins': currentCoins - amount,
+        'coins': nextCoins,
       }, SetOptions(merge: true));
+      transaction.set(historyRef, {
+        'amount': amount,
+        'title': title,
+        'type': type,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     });
   }
+
+  static bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+class CoinHistoryEntry {
+  const CoinHistoryEntry({
+    required this.amount,
+    required this.title,
+    required this.type,
+    required this.createdAt,
+  });
+
+  factory CoinHistoryEntry.fromMap(Map<String, dynamic> map) {
+    return CoinHistoryEntry(
+      amount: (map['amount'] as num?)?.toInt() ?? 0,
+      title: (map['title'] as String?) ?? 'Coin update',
+      type: (map['type'] as String?) ?? 'reward',
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  final int amount;
+  final String title;
+  final String type;
+  final DateTime? createdAt;
 }
