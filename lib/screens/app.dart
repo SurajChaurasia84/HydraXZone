@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../firebase_options.dart';
+import 'coins_screen.dart';
 import 'home_screen.dart';
 import 'onboarding_screen.dart';
 import 'profile_screen.dart';
@@ -36,9 +39,11 @@ class _AppState extends State<App> {
           themeMode: themeMode,
           theme: _theme(Brightness.light),
           darkTheme: _theme(Brightness.dark),
-          home: _BootstrapGate(
-            key: ValueKey(_gateVersion),
-            onOnboardingComplete: _refreshGate,
+          home: _SplashGate(
+            child: _BootstrapGate(
+              key: ValueKey(_gateVersion),
+              onOnboardingComplete: _refreshGate,
+            ),
           ),
         );
       },
@@ -81,6 +86,182 @@ class _AppState extends State<App> {
         selectedItemColor: primaryColor,
         unselectedItemColor: isDark ? Colors.white70 : Colors.black54,
         backgroundColor: background,
+      ),
+    );
+  }
+}
+
+class _SplashGate extends StatefulWidget {
+  const _SplashGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<_SplashGate> {
+  bool _showSplash = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 1150), () {
+      if (mounted) {
+        setState(() => _showSplash = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _showSplash ? const _SplashScreen() : widget.child,
+    );
+  }
+}
+
+class _SplashScreen extends StatefulWidget {
+  const _SplashScreen();
+
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? darkBackground : lightBackground;
+    final softBackground = isDark ? const Color(0xFF1A130F) : const Color(0xFFFFF2EC);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: systemOverlayStyle(background),
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [background, softBackground],
+            ),
+          ),
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final pulse = 0.92 + (_controller.value * 0.12);
+                final glow = 18 + (_controller.value * 24);
+                final orbit = (_controller.value - 0.5) * 18;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: 170,
+                      width: 170,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            height: 138,
+                            width: 138,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: primaryColor.withValues(alpha: 0.18),
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          Transform.translate(
+                            offset: Offset(-34, -orbit),
+                            child: Container(
+                              height: 10,
+                              width: 10,
+                              decoration: const BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          Transform.translate(
+                            offset: Offset(34, orbit),
+                            child: Container(
+                              height: 8,
+                              width: 8,
+                              decoration: BoxDecoration(
+                                color: primaryColor.withValues(alpha: 0.7),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: pulse,
+                            child: Container(
+                              height: 108,
+                              width: 108,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFF6A38), primaryColor],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0x66FF4B11),
+                                    blurRadius: glow,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Image.asset('assets/icon.png'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'DuelXZone',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -183,42 +364,83 @@ class _AppShellState extends State<AppShell> {
     final screens = [
       const HomeScreen(),
       const SimpleScreen(title: 'Battles'),
-      const SimpleScreen(title: 'Leaderboard'),
+      const CoinsScreen(),
       const ProfileScreen(),
     ];
     final background = Theme.of(context).scaffoldBackgroundColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemOverlayStyle(background),
       child: Scaffold(
         body: IndexedStack(index: _currentIndex, children: screens),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: background,
+            border: Border(
+              top: BorderSide(
+                color: primaryColor.withValues(alpha: isDark ? 0.32 : 0.18),
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.sports_mma_outlined),
-              activeIcon: Icon(Icons.sports_mma),
-              label: 'Battles',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.emoji_events_outlined),
-              activeIcon: Icon(Icons.emoji_events),
-              label: 'Leaderboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.32)
+                    : primaryColor.withValues(alpha: 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            items: [
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.home_outlined),
+                activeIcon: _tabGlowIcon(Icons.home),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.sports_mma_outlined),
+                activeIcon: _tabGlowIcon(Icons.sports_mma),
+                label: 'Battles',
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.monetization_on_outlined),
+                activeIcon: _tabGlowIcon(Icons.monetization_on),
+                label: 'Coins',
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.person_outline),
+                activeIcon: _tabGlowIcon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _tabGlowIcon(IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: primaryColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.34),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x55FF4B11),
+            blurRadius: 16,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Icon(icon, color: primaryColor),
     );
   }
 }
