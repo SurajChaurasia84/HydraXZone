@@ -7,13 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../firebase_options.dart';
+import 'battles_screen.dart';
 import 'coins_screen.dart';
 import 'home_screen.dart';
 import 'navigation_controller.dart';
 import 'onboarding_screen.dart';
 import 'profile_screen.dart';
 import 'screen_constants.dart';
-import 'simple_screen.dart';
 import 'status_screen.dart';
 import 'system_ui.dart';
 import 'theme_controller.dart';
@@ -410,7 +410,7 @@ class _AppShellState extends State<AppShell> {
     final currentIndex = AppTabController.currentIndex.value;
     final screens = [
       const HomeScreen(),
-      const SimpleScreen(title: 'Battles'),
+      const BattlesScreen(),
       const CoinsScreen(),
       const ProfileScreen(),
     ];
