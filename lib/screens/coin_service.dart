@@ -38,7 +38,11 @@ class CoinService {
     if (ref == null) {
       return const Stream<Map<String, dynamic>?>.empty();
     }
-    return ref.snapshots().map((snapshot) => snapshot.data());
+    return ref.snapshots().map((snapshot) {
+      final data = snapshot.data();
+      if (data == null) return null;
+      return _normalizedWalletData(data);
+    });
   }
 
   static Stream<List<CoinHistoryEntry>> historyStream() {
@@ -256,6 +260,24 @@ class CoinService {
 
   static bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static Map<String, dynamic> _normalizedWalletData(Map<String, dynamic> data) {
+    final normalized = Map<String, dynamic>.from(data);
+    final lastCheckIn = (data['lastCheckInAt'] as Timestamp?)?.toDate();
+    final streak = (data['checkInStreak'] as num?)?.toInt() ?? 0;
+
+    if (lastCheckIn == null || streak <= 0) {
+      normalized['checkInStreak'] = 0;
+      return normalized;
+    }
+
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(days: 1));
+    final stillActive = _isSameDay(lastCheckIn, now) || _isSameDay(lastCheckIn, yesterday);
+
+    normalized['checkInStreak'] = stillActive ? streak : 0;
+    return normalized;
   }
 }
 
