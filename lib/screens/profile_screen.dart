@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'screen_constants.dart';
 import 'theme_controller.dart';
+import 'user_cache_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -28,111 +29,120 @@ class ProfileScreen extends StatelessWidget {
             ThemeMode.system => brightness == Brightness.dark,
           };
 
-          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: userStream,
-            builder: (context, snapshot) {
-              final data = snapshot.data?.data();
-              final game = (data?['game'] as String?)?.trim() ?? 'Not set';
-              final gameId = (data?['gameId'] as String?)?.trim() ?? 'Not set';
-              final username = (data?['username'] as String?)?.trim() ?? 'Not set';
+          return FutureBuilder<Map<String, String>>(
+            future: UserCacheService.load(),
+            builder: (context, cacheSnapshot) {
+              final cached = cacheSnapshot.data ?? const <String, String>{};
+              return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: userStream,
+                builder: (context, snapshot) {
+                  final data = snapshot.data?.data();
+                  if (data != null) {
+                    UserCacheService.save(data);
+                  }
+                  final game = ((data?['game'] as String?) ?? cached['game'] ?? '').trim();
+                  final gameId = ((data?['gameId'] as String?) ?? cached['gameId'] ?? '').trim();
+                  final username =
+                      ((data?['username'] as String?) ?? cached['username'] ?? '').trim();
+                  final name = ((data?['name'] as String?) ?? cached['name'] ?? '').trim();
+                  final email = ((data?['email'] as String?) ?? cached['email'] ?? '').trim();
+                  final photo = ((data?['photo'] as String?) ?? cached['photo'] ?? '').trim();
 
-              return ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? cardBackground
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundImage: (user?.photoURL ?? '').isEmpty
-                              ? null
-                              : NetworkImage(user!.photoURL!),
-                          child: (user?.photoURL ?? '').isEmpty
-                              ? const Icon(Icons.person)
-                              : null,
+                  return ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? cardBackground
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(22),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user?.displayName ?? 'Player',
-                                style: Theme.of(context).textTheme.titleLarge,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage: photo.isEmpty ? null : NetworkImage(photo),
+                              child: photo.isEmpty ? const Icon(Icons.person) : null,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name.isEmpty ? (user?.displayName ?? 'Player') : name,
+                                    style: Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(email.isEmpty ? (user?.email ?? '') : email),
+                                ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(user?.email ?? ''),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _ProfileInfoTile(
-                    label: 'Game',
-                    value: game,
-                    icon: Icons.sports_esports,
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileInfoTile(
-                    label: 'Game ID',
-                    value: gameId,
-                    icon: Icons.badge_outlined,
-                    trailing: gameId == 'Not set'
-                        ? null
-                        : IconButton(
-                            onPressed: () async {
-                              await Clipboard.setData(ClipboardData(text: gameId));
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Game ID copied'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.copy_rounded),
-                            tooltip: 'Copy',
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileInfoTile(
-                    label: 'Username',
-                    value: username,
-                    icon: Icons.alternate_email_rounded,
-                    trailing: username == 'Not set'
-                        ? null
-                        : IconButton(
-                            onPressed: () async {
-                              await Clipboard.setData(ClipboardData(text: username));
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Username copied'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.copy_rounded),
-                            tooltip: 'Copy',
-                          ),
-                  ),
-                  const SizedBox(height: 20),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Dark mode'),
-                    value: isDark,
-                    onChanged: AppThemeController.setDarkMode,
-                  ),
-                ],
+                      ),
+                      const SizedBox(height: 20),
+                      _ProfileInfoTile(
+                        label: 'Game',
+                        value: game.isEmpty ? 'Not set' : game,
+                        icon: Icons.sports_esports,
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileInfoTile(
+                        label: 'Game ID',
+                        value: gameId.isEmpty ? 'Not set' : gameId,
+                        icon: Icons.badge_outlined,
+                        trailing: gameId.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () async {
+                                  await Clipboard.setData(ClipboardData(text: gameId));
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Game ID copied'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_rounded),
+                                tooltip: 'Copy',
+                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      _ProfileInfoTile(
+                        label: 'Username',
+                        value: username.isEmpty ? 'Not set' : username,
+                        icon: Icons.alternate_email_rounded,
+                        trailing: username.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () async {
+                                  await Clipboard.setData(ClipboardData(text: username));
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Username copied'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_rounded),
+                                tooltip: 'Copy',
+                              ),
+                      ),
+                      const SizedBox(height: 20),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Dark mode'),
+                        value: isDark,
+                        onChanged: AppThemeController.setDarkMode,
+                      ),
+                    ],
+                  );
+                },
               );
             },
           );
