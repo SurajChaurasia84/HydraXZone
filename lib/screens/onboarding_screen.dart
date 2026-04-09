@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'coin_service.dart';
 import 'screen_constants.dart';
 import 'system_ui.dart';
+import 'user_cache_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
@@ -86,6 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+      await UserCacheService.save(basic);
     } on FirebaseException catch (e) {
       if (!mounted) return;
       setState(() => _errorText = _firebaseMessage(e, 'Unable to save profile.'));
@@ -141,6 +143,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         'game': _selectedGame,
         'gameId': gameId,
       }, SetOptions(merge: true));
+      await UserCacheService.save({
+        'game': _selectedGame,
+        'gameId': gameId,
+      });
       if (!mounted) return;
       await _goTo(2);
     } on FirebaseException catch (e) {
@@ -176,6 +182,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'username': username,
       }, SetOptions(merge: true));
+      await UserCacheService.save({
+        'username': username,
+      });
       if (!mounted) return;
       widget.onCompleted();
     } on FirebaseException catch (e) {
