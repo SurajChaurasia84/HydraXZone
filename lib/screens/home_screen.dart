@@ -7,6 +7,9 @@ import 'battle_service.dart';
 import 'coin_service.dart';
 import 'navigation_controller.dart';
 import 'screen_constants.dart';
+import 'tournament_matches_screen.dart';
+import 'tournament_service.dart';
+import 'user_cache_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -179,86 +182,101 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: user == null
-          ? null
-          : FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .snapshots(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data();
-        if (data?['signupBonusPending'] == true) {
-          _showSignupBonus();
-        }
+    return FutureBuilder<Map<String, String>>(
+      future: UserCacheService.load(),
+      builder: (context, cacheSnapshot) {
+        final cached = cacheSnapshot.data ?? const <String, String>{};
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: user == null
+              ? null
+              : FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .snapshots(),
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data();
+            if (data != null) {
+              UserCacheService.save(data);
+            }
+            if (data?['signupBonusPending'] == true) {
+              _showSignupBonus();
+            }
 
-        final username =
-            (data?['username'] as String?)?.trim().isNotEmpty == true
-            ? (data?['username'] as String).trim()
-            : (user?.displayName ?? 'Player').trim();
-        final photoUrl = (data?['photo'] as String?)?.trim().isNotEmpty == true
-            ? (data?['photo'] as String).trim()
-            : user?.photoURL;
+            final username =
+                (data?['username'] as String?)?.trim().isNotEmpty == true
+                ? (data?['username'] as String).trim()
+                : (cached['username']?.trim().isNotEmpty == true
+                      ? cached['username']!.trim()
+                      : (user?.displayName ?? cached['name'] ?? 'Player').trim());
+            final photoUrl = (data?['photo'] as String?)?.trim().isNotEmpty == true
+                ? (data?['photo'] as String).trim()
+                : ((cached['photo']?.trim().isNotEmpty == true
+                      ? cached['photo']!.trim()
+                      : user?.photoURL));
 
-        return Scaffold(
-          appBar: AppBar(
-            titleSpacing: 20,
-            title: _TopBarTitle(username: username, photoUrl: photoUrl),
-            actions: const [_CoinBadge(), SizedBox(width: 16)],
-          ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-            children: [
-              const _TournamentBanner(),
-              const SizedBox(height: 22),
-              _PrimaryPlayButton(
-                onTap: _showPlayOptions,
+            return Scaffold(
+              appBar: AppBar(
+                titleSpacing: 20,
+                title: _TopBarTitle(username: username, photoUrl: photoUrl),
+                actions: const [_CoinBadge(), SizedBox(width: 16)],
               ),
-              const SizedBox(height: 18),
-              Row(
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 children: [
-                  Expanded(
-                    child: _QuickActionButton(
-                      title: 'Daily Battles',
-                      icon: Icons.bolt_rounded,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Daily Battles tapped'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                    ),
+                  const _TournamentBanner(),
+                  const SizedBox(height: 22),
+                  _PrimaryPlayButton(
+                    onTap: _showPlayOptions,
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _QuickActionButton(
-                      title: 'Weekly Battles',
-                      icon: Icons.calendar_today_rounded,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Weekly Battles tapped'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                    ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickActionButton(
+                          title: 'Daily Battles',
+                          icon: Icons.bolt_rounded,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Daily Battles tapped'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _QuickActionButton(
+                          title: 'Weekly Battles',
+                          icon: Icons.calendar_today_rounded,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Weekly Battles tapped'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                        ),
                   ),
                 ],
               ),
-              const SizedBox(height: 26),
-              Text(
-                'Active Room',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                  const SizedBox(height: 22),
+                  const _TournamentActionSection(),
+                  const SizedBox(height: 26),
+                  Text(
+                    'Active Room',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  const _MyBattleRoomsSection(),
+                ],
               ),
-              const SizedBox(height: 14),
-              const _MyBattleRoomsSection(),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -445,7 +463,7 @@ class _PrimaryPlayButton extends StatelessWidget {
           elevation: 0,
         ),
         child: Text(
-          'Play Now',
+          'Quick Play',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w900,
@@ -811,6 +829,84 @@ class _CoinBadge extends StatelessWidget {
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TournamentActionSection extends StatelessWidget {
+  const _TournamentActionSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<TournamentJoinAction?>(
+      stream: TournamentService.joinActionStream(),
+      builder: (context, snapshot) {
+        final action = snapshot.data;
+        if (action == null) return const SizedBox.shrink();
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? cardBackground
+                : Colors.grey.shade100,
+            border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 48,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.flash_on_rounded, color: primaryColor),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      action.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'You are registered. Continue to your battles.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TournamentMatchesScreen(
+                        title: action.title,
+                        cycleId: action.cycleId,
+                        liveStart: action.liveStart,
+                        battleCount: action.battleCount,
+                      ),
+                    ),
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Join Battles'),
               ),
             ],
           ),
