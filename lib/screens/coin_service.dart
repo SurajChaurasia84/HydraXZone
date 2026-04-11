@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class CoinService {
   static const int signupBonus = 500;
-  static const int dailyOpenReward = 25;
-  static const int adReward = 40;
+  static const int dailyOpenReward = 20;
+  static const int adReward = 20;
   static const int checkInGoalDays = 7;
   static const int checkInGoalReward = 50;
 
@@ -125,19 +125,6 @@ class CoinService {
     );
   }
 
-  static Future<int> claimDailySpin() {
-    final ref = _userRef;
-    if (ref == null) return Future.value(0);
-    final amount = [15, 20, 25, 30, 40, 60, 100][_random.nextInt(7)];
-
-    return _claimDailyReward(
-      ref: ref,
-      rewardKey: 'lastSpinAt',
-      amount: amount,
-      title: 'Daily spin reward',
-      type: 'daily_spin',
-    );
-  }
 
   static Future<int> claimCheckInReward() {
     final ref = _userRef;
