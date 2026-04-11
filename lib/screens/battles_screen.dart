@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'battle_submission_screen.dart';
 import 'battle_submission_service.dart';
+import 'coin_badge.dart';
 import 'screen_constants.dart';
 
 class BattlesScreen extends StatelessWidget {
@@ -50,6 +51,7 @@ class BattlesScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Battles'),
+          actions: const [CoinBadge(), SizedBox(width: 16)],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(58),
             child: Padding(
