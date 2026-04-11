@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'screen_constants.dart';
 import 'theme_controller.dart';
@@ -139,6 +140,47 @@ class ProfileScreen extends StatelessWidget {
                         title: const Text('Dark mode'),
                         value: isDark,
                         onChanged: AppThemeController.setDarkMode,
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.privacy_tip_rounded, color: primaryColor),
+                        title: const Text('Privacy Policy'),
+                        onTap: () async {
+                          final uri = Uri.parse('https://example.com/privacy-policy');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Could not open link')),
+                            );
+                          }
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.gavel_rounded, color: primaryColor),
+                        title: const Text('Battle Rules'),
+                        onTap: () {
+                          // TODO: implement actual screen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Battle rules coming soon!')),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.group_add_rounded, color: primaryColor),
+                        title: const Text('Refer and Earn'),
+                        onTap: () {
+                          // TODO: implement actual screen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Refer and earn coming soon!')),
+                          );
+                        },
                       ),
                     ],
                   );
