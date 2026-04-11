@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'coin_service.dart';
+import 'home_screen.dart';
 import 'screen_constants.dart';
 
 class CoinsScreen extends StatelessWidget {
@@ -17,11 +18,13 @@ class CoinsScreen extends StatelessWidget {
         final streak = (data['checkInStreak'] as num?)?.toInt() ?? 0;
         final dailyOpenClaimed = _isClaimedToday(data['lastOpenRewardAt']);
         final adRewardClaimed = _isClaimedToday(data['lastAdRewardAt']);
-        final spinClaimed = _isClaimedToday(data['lastSpinAt']);
         final checkInClaimed = _isClaimedToday(data['lastCheckInAt']);
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Coins')),
+          appBar: AppBar(
+            title: const Text('Coins'),
+            actions: const [CoinBadge(), SizedBox(width: 16)],
+          ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
             children: [
@@ -63,21 +66,7 @@ class CoinsScreen extends StatelessWidget {
                           successPrefix: 'Ad reward claimed',
                         ),
               ),
-              const SizedBox(height: 12),
-              _RewardActionCard(
-                title: 'Daily Spin',
-                subtitle: 'Spin once daily to win coins',
-                icon: Icons.casino_rounded,
-                buttonText: spinClaimed ? 'Claimed' : 'Spin',
-                enabled: !spinClaimed,
-                onTap: spinClaimed
-                    ? null
-                    : () => _runRewardAction(
-                          context,
-                          () => CoinService.claimDailySpin(),
-                          successPrefix: 'Spin reward won',
-                        ),
-              ),
+
               const SizedBox(height: 12),
               _RewardActionCard(
                 title: '7 Day Check-In',
@@ -166,27 +155,16 @@ class _WalletCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = (streak / CoinService.checkInGoalDays).clamp(0.0, 1.0);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFF6A38),
-            primaryColor,
-            Color(0xFF8F2A0A),
-          ],
+        borderRadius: BorderRadius.circular(22),
+        color: isDark ? cardBackground : Colors.grey.shade100,
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.12),
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55FF4B11),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,80 +172,49 @@ class _WalletCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                height: 54,
-                width: 54,
+                height: 48,
+                width: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  shape: BoxShape.circle,
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
-                  Icons.monetization_on_rounded,
-                  color: Colors.white,
-                  size: 28,
+                  Icons.local_fire_department_rounded,
+                  color: primaryColor,
                 ),
               ),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Coin Wallet',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.88),
-                        ),
-                  ),
-                  Text(
-                    '$coins',
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Check-in streak: $streak / ${CoinService.checkInGoalDays} days',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${CoinService.checkInGoalDays - streak} days left for +${CoinService.checkInGoalReward} coins',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.local_fire_department_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Check-in streak: $streak / ${CoinService.checkInGoalDays} days',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 10,
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              minHeight: 8,
+              backgroundColor: primaryColor.withValues(alpha: 0.12),
+              valueColor: const AlwaysStoppedAnimation<Color>(primaryColor),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${CoinService.checkInGoalDays - streak} days left for +${CoinService.checkInGoalReward} coins',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.88),
-                ),
           ),
         ],
       ),
