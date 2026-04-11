@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'battle_submission_service.dart';
 import 'screen_constants.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -116,17 +117,15 @@ class _LeaderboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cycle = _TournamentCycle.forKind(kind, now);
-    final stream = FirebaseFirestore.instance
-        .collection('tournament_registrations')
-        .doc(cycle.id)
-        .collection('participants')
+    final cycle = BattleSubmissionService.cycleFor(_mapKind(kind), now);
+    final stream = BattleSubmissionService.participantsCollection(cycle.id)
+        .where('isapprove', isEqualTo: true)
         .snapshots();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: stream,
       builder: (context, snapshot) {
-        final docs = snapshot.data?.docs ?? const [];
+        final docs = snapshot.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
         final players = docs
             .map((doc) => _LeaderboardPlayer.fromMap(doc.id, doc.data()))
             .toList()
@@ -155,6 +154,14 @@ class _LeaderboardTab extends StatelessWidget {
       },
     );
   }
+}
+
+BattleSubmissionKind _mapKind(_TournamentKind kind) {
+  return switch (kind) {
+    _TournamentKind.daily => BattleSubmissionKind.daily,
+    _TournamentKind.weekly => BattleSubmissionKind.weekly,
+    _TournamentKind.mega => BattleSubmissionKind.mega,
+  };
 }
 
 class _LeaderboardTopRow extends StatelessWidget {
@@ -485,83 +492,3 @@ class _LeaderboardPlayer {
 }
 
 enum _TournamentKind { daily, weekly, mega }
-
-class _TournamentCycle {
-  const _TournamentCycle({
-    required this.id,
-    required this.statusText,
-    required this.countdownText,
-  });
-
-  final String id;
-  final String statusText;
-  final String countdownText;
-
-  static _TournamentCycle forKind(_TournamentKind kind, DateTime now) {
-    return switch (kind) {
-      _TournamentKind.daily => _daily(now),
-      _TournamentKind.weekly => _weekly(now),
-      _TournamentKind.mega => _mega(now),
-    };
-  }
-
-  static _TournamentCycle _daily(DateTime now) {
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 1));
-    return _TournamentCycle(
-      id: 'daily-${_formatDate(start)}',
-      statusText: 'Live today',
-      countdownText: 'Updates in ${_formatDuration(end.difference(now))}',
-    );
-  }
-
-  static _TournamentCycle _weekly(DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    final isLiveDay = now.weekday == DateTime.sunday;
-    final daysUntilSunday = (DateTime.sunday - now.weekday) % 7;
-    final liveStart = today.add(Duration(days: daysUntilSunday));
-    final activeStart = isLiveDay ? today : liveStart;
-    return _TournamentCycle(
-      id: 'weekly-${_formatDate(activeStart)}',
-      statusText: isLiveDay ? 'Live today' : 'Current cycle',
-      countdownText: isLiveDay
-          ? 'Updates after today'
-          : 'Live in ${_formatDuration(activeStart.difference(now))}',
-    );
-  }
-
-  static _TournamentCycle _mega(DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    final isLiveDay = now.day == 1 || now.day == 15;
-    final liveStart = _nextMegaLiveDay(today);
-    final activeStart = isLiveDay ? today : liveStart;
-    return _TournamentCycle(
-      id: 'mega-${_formatDate(activeStart)}',
-      statusText: isLiveDay ? 'Live today' : 'Current cycle',
-      countdownText: isLiveDay
-          ? 'Updates after today'
-          : 'Live in ${_formatDuration(activeStart.difference(now))}',
-    );
-  }
-
-  static DateTime _nextMegaLiveDay(DateTime today) {
-    if (today.day < 15) return DateTime(today.year, today.month, 15);
-    return DateTime(today.year, today.month + 1, 1);
-  }
-
-  static String _formatDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
-  }
-
-  static String _formatDuration(Duration duration) {
-    final safe = duration.isNegative ? Duration.zero : duration;
-    final days = safe.inDays;
-    final hours = safe.inHours.remainder(24).toString().padLeft(2, '0');
-    final minutes = safe.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = safe.inSeconds.remainder(60).toString().padLeft(2, '0');
-    if (days > 0) return '${days}d ${hours}h ${minutes}m';
-    return '${hours}h ${minutes}m ${seconds}s';
-  }
-}
