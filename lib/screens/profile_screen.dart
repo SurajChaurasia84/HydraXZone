@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'info_content_screen.dart';
 import 'screen_constants.dart';
 import 'theme_controller.dart';
 import 'user_cache_service.dart';
@@ -150,10 +151,45 @@ class ProfileScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.gavel_rounded, color: primaryColor),
                         title: const Text('Battle Rules'),
-                        subtitle: const Text('Tap to read how battles work'),
+                        subtitle: Text(
+                          'Tap to read how battles work',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Battle rules coming soon!')),
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const InfoContentScreen(
+                                title: 'Battle Rules',
+                                sections: [
+                                  InfoSection(
+                                    title: 'Fair Play Policy',
+                                    content: [
+                                      'Use of any third-party tools or hacks is strictly prohibited.',
+                                      'Teaming up with opponents in solo matches will lead to a permanent ban.',
+                                      'Abusing bugs or glitches to gain an unfair advantage is not allowed.',
+                                    ],
+                                  ),
+                                  InfoSection(
+                                    title: 'Match Conduct',
+                                    content: [
+                                      'Ensure a stable internet connection before joining a battle.',
+                                      'Quitting a match early may result in zero rewards and loss of entry fee.',
+                                      'Respect all players and maintain a healthy gaming environment.',
+                                    ],
+                                  ),
+                                  InfoSection(
+                                    title: 'Rewards & Payouts',
+                                    content: [
+                                      'Coins are automatically credited after match verification.',
+                                      'In case of disputes, the decision of the DuelXZone team is final.',
+                                      'Physical rewards (for Mega/Weekly) require valid profile details.',
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -161,7 +197,12 @@ class ProfileScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.group_add_rounded, color: primaryColor),
                         title: const Text('Refer and Earn'),
-                        subtitle: const Text('Share and earn 100 coins per friend'),
+                        subtitle: Text(
+                          'Share and earn 100 coins per friend',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Refer and earn coming soon!')),
@@ -172,7 +213,12 @@ class ProfileScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.privacy_tip_rounded, color: primaryColor),
                         title: const Text('Privacy Policy'),
-                        subtitle: const Text('Read how we handle your data'),
+                        subtitle: Text(
+                          'Read how we handle your data',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
                         onTap: () async {
                           final uri = Uri.parse('https://example.com/privacy-policy');
                           if (await canLaunchUrl(uri)) {
@@ -189,15 +235,64 @@ class ProfileScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.description_rounded, color: primaryColor),
                         title: const Text('Terms & Conditions'),
-                        subtitle: const Text('Important usage conditions'),
+                        subtitle: Text(
+                          'Important usage conditions',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const InfoContentScreen(
+                                title: 'Terms & Conditions',
+                                sections: [
+                                  InfoSection(
+                                    title: 'License & Access',
+                                    content: [
+                                      'DuelXZone grants you a limited, non-exclusive license to use the app for personal entertainment.',
+                                      'Users must be at least 13 years of age to participate in tournaments.',
+                                    ],
+                                  ),
+                                  InfoSection(
+                                    title: 'Coin System',
+                                    content: [
+                                      'Coins are virtual currency and hold no real-world cash value.',
+                                      'Transfer of coins between accounts is not permitted.',
+                                      'DuelXZone reserves the right to reset or modify coin balances in case of suspicious activity.',
+                                    ],
+                                  ),
+                                  InfoSection(
+                                    title: 'Account Security',
+                                    content: [
+                                      'You are responsible for maintaining the confidentiality of your account.',
+                                      'Each person is allowed only one registered account.',
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.help_outline_rounded, color: primaryColor),
+                        title: const Text('Help & Support'),
+                        subtitle: Text(
+                          'Contact us for any issues',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
                         onTap: () async {
-                          final uri = Uri.parse('https://example.com/terms-and-conditions');
+                          final uri = Uri.parse('mailto:support@duelxzone.com?subject=Support Request');
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
                           } else {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open link')),
+                              const SnackBar(content: Text('Could not open email app')),
                             );
                           }
                         },
