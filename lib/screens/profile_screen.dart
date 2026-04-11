@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'screen_constants.dart';
@@ -52,39 +53,40 @@ class ProfileScreen extends StatelessWidget {
                   return ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? cardBackground
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                        child: Row(
+                      Center(
+                        child: Column(
                           children: [
+                            // const SizedBox(height: 10),
                             CircleAvatar(
-                              radius: 28,
+                              radius: 54,
+                              backgroundColor: primaryColor.withValues(alpha: 0.1),
                               backgroundImage: photo.isEmpty ? null : NetworkImage(photo),
-                              child: photo.isEmpty ? const Icon(Icons.person) : null,
+                              child: photo.isEmpty
+                                  ? const Icon(Icons.person, size: 54, color: primaryColor)
+                                  : null,
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    name.isEmpty ? (user?.displayName ?? 'Player') : name,
-                                    style: Theme.of(context).textTheme.titleLarge,
+                            const SizedBox(height: 16),
+                            Text(
+                              name.isEmpty ? (user?.displayName ?? 'Player') : name,
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(email.isEmpty ? (user?.email ?? '') : email),
-                                ],
-                              ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              email.isEmpty ? (user?.email ?? '') : email,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                            ),
+                            const SizedBox(height: 24),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
                       _ProfileInfoTile(
                         label: 'Game',
                         value: game.isEmpty ? 'Not set' : game,
@@ -146,8 +148,31 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.gavel_rounded, color: primaryColor),
+                        title: const Text('Battle Rules'),
+                        subtitle: const Text('Tap to read how battles work'),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Battle rules coming soon!')),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.group_add_rounded, color: primaryColor),
+                        title: const Text('Refer and Earn'),
+                        subtitle: const Text('Share and earn 100 coins per friend'),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Refer and earn coming soon!')),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.privacy_tip_rounded, color: primaryColor),
                         title: const Text('Privacy Policy'),
+                        subtitle: const Text('Read how we handle your data'),
                         onTap: () async {
                           final uri = Uri.parse('https://example.com/privacy-policy');
                           if (await canLaunchUrl(uri)) {
@@ -162,26 +187,43 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.gavel_rounded, color: primaryColor),
-                        title: const Text('Battle Rules'),
-                        onTap: () {
-                          // TODO: implement actual screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Battle rules coming soon!')),
+                        leading: const Icon(Icons.description_rounded, color: primaryColor),
+                        title: const Text('Terms & Conditions'),
+                        subtitle: const Text('Important usage conditions'),
+                        onTap: () async {
+                          final uri = Uri.parse('https://example.com/terms-and-conditions');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Could not open link')),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 28),
+                      FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snapshot) {
+                          final version = snapshot.data?.version ?? '1.0.0';
+                          return Center(
+                            child: Text(
+                              'DuelXZone v$version\n© ${DateTime.now().year} DuelXZone. All rights reserved.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.4),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.5,
+                                  ),
+                            ),
                           );
                         },
                       ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.group_add_rounded, color: primaryColor),
-                        title: const Text('Refer and Earn'),
-                        onTap: () {
-                          // TODO: implement actual screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Refer and earn coming soon!')),
-                          );
-                        },
-                      ),
+                      const SizedBox(height: 12),
                     ],
                   );
                 },
