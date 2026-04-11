@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'coin_badge.dart';
 import 'coin_service.dart';
 import 'home_screen.dart';
 import 'screen_constants.dart';
