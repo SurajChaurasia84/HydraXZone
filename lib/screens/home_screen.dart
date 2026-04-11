@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'battle_room_screen.dart';
 import 'battle_service.dart';
 import 'coin_service.dart';
+import 'leaderboard_screen.dart';
 import 'navigation_controller.dart';
 import 'screen_constants.dart';
 import 'tournament_matches_screen.dart';
@@ -64,9 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Choose Battle Entry',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _PlayOptionTile(
                   label: 'Free Battle',
                   amount: 0,
+                  reward: 20,
                   onTap: () {
                     Navigator.pop(context);
                     _startBattle(0);
@@ -84,17 +86,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 10),
                 _PlayOptionTile(
-                  label: '25 Coin Battle',
-                  amount: 25,
+                  label: '30 Coin Battle',
+                  amount: 30,
+                  reward: 60,
                   onTap: () {
                     Navigator.pop(context);
-                    _startBattle(25);
+                    _startBattle(30);
                   },
                 ),
                 const SizedBox(height: 10),
                 _PlayOptionTile(
                   label: '50 Coin Battle',
                   amount: 50,
+                  reward: 100,
                   onTap: () {
                     Navigator.pop(context);
                     _startBattle(50);
@@ -109,46 +113,46 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startBattle(int entryFee) async {
-    final existingBattleId = await BattleService.findLiveBattleId();
-    if (existingBattleId != null) {
-      if (!mounted) return;
-      final openRoom = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Room Already Live'),
-            content: const Text(
-              'A room is already live. Exit that room before joining another.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Later'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Open Room'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (openRoom == true && mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => BattleRoomScreen(battleId: existingBattleId),
-          ),
-        );
-      }
-      return;
-    }
-
     try {
+      final existingBattleId = await BattleService.findLiveBattleId();
+      if (existingBattleId != null) {
+        if (!mounted) return;
+        final openRoom = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Text('Room Already Live'),
+              content: const Text(
+                'A room is already live. Exit that room before joining another.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Later'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Open Room'),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (openRoom == true && mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BattleRoomScreen(battleId: existingBattleId),
+            ),
+          );
+        }
+        return;
+      }
+
       final battleId = await BattleService.createOrJoinBattle(entryFee: entryFee);
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -158,9 +162,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } on FirebaseException catch (e) {
       if (!mounted) return;
-      final message = e.code == 'active-room-exists'
-          ? 'A room is already live. Exit that room before joining another.'
-          : (e.message ?? 'Unable to create room right now.');
+      final message = switch (e.code) {
+        'active-room-exists' =>
+          'A room is already live. Exit that room before joining another.',
+        'permission-denied' =>
+          'Battle room permission denied. Please update Firestore rules for battles.',
+        'unauthenticated' => 'Please sign in again.',
+        _ => e.message ?? 'Unable to start battle right now.',
+      };
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
@@ -172,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('$e'),
+          content: Text(''),
         ),
       );
     }
@@ -207,8 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? (data?['username'] as String).trim()
                 : (cached['username']?.trim().isNotEmpty == true
                       ? cached['username']!.trim()
-                      : (user?.displayName ?? cached['name'] ?? 'Player').trim());
-            final photoUrl = (data?['photo'] as String?)?.trim().isNotEmpty == true
+                      : (user?.displayName ?? cached['name'] ?? 'Player')
+                            .trim());
+            final photoUrl =
+                (data?['photo'] as String?)?.trim().isNotEmpty == true
                 ? (data?['photo'] as String).trim()
                 : ((cached['photo']?.trim().isNotEmpty == true
                       ? cached['photo']!.trim()
@@ -218,58 +229,30 @@ class _HomeScreenState extends State<HomeScreen> {
               appBar: AppBar(
                 titleSpacing: 20,
                 title: _TopBarTitle(username: username, photoUrl: photoUrl),
-                actions: const [_CoinBadge(), SizedBox(width: 16)],
+                actions: const [CoinBadge(), SizedBox(width: 16)],
               ),
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 children: [
                   const _TournamentBanner(),
                   const SizedBox(height: 22),
-                  _PrimaryPlayButton(
-                    onTap: _showPlayOptions,
-                  ),
+                  _PrimaryPlayButton(onTap: _showPlayOptions),
                   const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickActionButton(
-                          title: 'Daily Battles',
-                          icon: Icons.bolt_rounded,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Daily Battles tapped'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
+                  _LeaderboardSection(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LeaderboardScreen(),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _QuickActionButton(
-                          title: 'Weekly Battles',
-                          icon: Icons.calendar_today_rounded,
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Weekly Battles tapped'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
-                  const SizedBox(height: 22),
                   const _TournamentActionSection(),
-                  const SizedBox(height: 26),
                   Text(
                     'Active Room',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   const _MyBattleRoomsSection(),
@@ -340,16 +323,16 @@ class _TournamentBanner extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 1.5,
       child: Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x55FF4B11),
-            blurRadius: 28,
-            offset: Offset(0, 14),
-          ),
-        ],
-      ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55FF4B11),
+              blurRadius: 28,
+              offset: Offset(0, 14),
+            ),
+          ],
+        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(30),
           child: Stack(
@@ -474,66 +457,68 @@ class _PrimaryPlayButton extends StatelessWidget {
   }
 }
 
-class _QuickActionButton extends StatelessWidget {
-  const _QuickActionButton({
-    required this.title,
-    required this.icon,
-    required this.onTap,
-  });
+// class _QuickActionButton extends StatelessWidget {
+//   const _QuickActionButton({
+//     required this.title,
+//     required this.icon,
+//     required this.onTap,
+//   });
 
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
+//   final String title;
+//   final IconData icon;
+//   final VoidCallback onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+//   @override
+//   Widget build(BuildContext context) {
+//     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: isDark ? cardBackground : Colors.grey.shade100,
-          border: Border.all(color: primaryColor.withValues(alpha: 0.14)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: primaryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: primaryColor),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//     return InkWell(
+//       onTap: onTap,
+//       borderRadius: BorderRadius.circular(22),
+//       child: Container(
+//         padding: const EdgeInsets.all(16),
+//         decoration: BoxDecoration(
+//           borderRadius: BorderRadius.circular(22),
+//           color: isDark ? cardBackground : Colors.grey.shade100,
+//           border: Border.all(color: primaryColor.withValues(alpha: 0.14)),
+//         ),
+//         child: Column(
+//           children: [
+//             Container(
+//               height: 48,
+//               width: 48,
+//               decoration: BoxDecoration(
+//                 color: primaryColor.withValues(alpha: 0.12),
+//                 borderRadius: BorderRadius.circular(14),
+//               ),
+//               child: Icon(icon, color: primaryColor),
+//             ),
+//             const SizedBox(height: 12),
+//             Text(
+//               title,
+//               textAlign: TextAlign.center,
+//               style: Theme.of(
+//                 context,
+//               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class _PlayOptionTile extends StatelessWidget {
   const _PlayOptionTile({
     required this.label,
     required this.amount,
+    required this.reward,
     required this.onTap,
   });
 
   final String label;
   final int amount;
+  final int reward;
   final VoidCallback onTap;
 
   @override
@@ -563,11 +548,31 @@ class _PlayOptionTile extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.emoji_events_rounded, color: Color(0xFF39D98A), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Win $reward coins',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF39D98A),
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Container(
@@ -577,13 +582,71 @@ class _PlayOptionTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                amount == 0 ? 'FREE' : '$amount',
+                amount == 0 ? 'FREE' : '-$amount',
                 style: const TextStyle(
                   color: primaryColor,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LeaderboardSection extends StatelessWidget {
+  const _LeaderboardSection({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: isDark ? cardBackground : Colors.grey.shade100,
+          border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 52,
+              width: 52,
+              decoration: BoxDecoration(
+                color: primaryColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.emoji_events_rounded, color: primaryColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Leaderboard',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'See top players and latest rankings.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(Icons.chevron_right_rounded, color: primaryColor),
           ],
         ),
       ),
@@ -600,16 +663,18 @@ class _MyBattleRoomsSection extends StatelessWidget {
     return StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
       stream: BattleService.myBattlesStream(),
       builder: (context, snapshot) {
-        final docs = (snapshot.data ?? const [])
-            .where((doc) {
-              final data = doc.data();
-              final status = data['status'] as String? ?? 'waiting';
-              final dismissedBy = List<String>.from(data['dismissedBy'] as List<dynamic>? ?? []);
-              return uid != null &&
-                  !dismissedBy.contains(uid) &&
-                  (status == 'waiting' || status == 'matched' || status == 'ongoing');
-            })
-            .toList();
+        final docs = (snapshot.data ?? const []).where((doc) {
+          final data = doc.data();
+          final status = data['status'] as String? ?? 'waiting';
+          final dismissedBy = List<String>.from(
+            data['dismissedBy'] as List<dynamic>? ?? [],
+          );
+          return uid != null &&
+              !dismissedBy.contains(uid) &&
+              (status == 'waiting' ||
+                  status == 'matched' ||
+                  status == 'ongoing');
+        }).toList();
         if (docs.isEmpty) {
           return const Text('No active rooms right now');
         }
@@ -622,10 +687,7 @@ class _MyBattleRoomsSection extends StatelessWidget {
 }
 
 class _BattleRoomTile extends StatelessWidget {
-  const _BattleRoomTile({
-    required this.data,
-    required this.battleId,
-  });
+  const _BattleRoomTile({required this.data, required this.battleId});
 
   final Map<String, dynamic> data;
   final String battleId;
@@ -640,7 +702,9 @@ class _BattleRoomTile extends StatelessWidget {
     String opponentName = 'Waiting for opponent...';
     for (final entry in players.entries) {
       if (entry.key != uid) {
-        final player = Map<String, dynamic>.from(entry.value as Map<String, dynamic>);
+        final player = Map<String, dynamic>.from(
+          entry.value as Map<String, dynamic>,
+        );
         opponentName = (player['name'] as String?) ?? opponentName;
         break;
       }
@@ -692,9 +756,8 @@ class _BattleRoomTile extends StatelessWidget {
                       children: [
                         Text(
                           opponentName,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -720,7 +783,9 @@ class _BattleRoomTile extends StatelessWidget {
                           builder: (dialogContext) {
                             return AlertDialog(
                               title: Text(
-                                status == 'matched' ? 'Exit Room?' : 'Cancel Room?',
+                                status == 'matched'
+                                    ? 'Exit Room?'
+                                    : 'Cancel Room?',
                               ),
                               content: Text(
                                 status == 'matched'
@@ -729,16 +794,20 @@ class _BattleRoomTile extends StatelessWidget {
                               ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(false),
                                   child: const Text('No'),
                                 ),
                                 FilledButton(
-                                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(true),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: primaryColor,
                                     foregroundColor: Colors.white,
                                   ),
-                                  child: Text(status == 'matched' ? 'Exit' : 'Delete'),
+                                  child: Text(
+                                    status == 'matched' ? 'Exit' : 'Delete',
+                                  ),
                                 ),
                               ],
                             );
@@ -770,7 +839,9 @@ class _BattleRoomTile extends StatelessWidget {
                           );
                         }
                       },
-                      tooltip: status == 'matched' ? 'Exit room' : 'Delete waiting room',
+                      tooltip: status == 'matched'
+                          ? 'Exit room'
+                          : 'Delete waiting room',
                       icon: const Icon(Icons.close_rounded),
                       color: Colors.redAccent,
                     )
@@ -781,9 +852,9 @@ class _BattleRoomTile extends StatelessWidget {
                     child: Text(
                       status.toUpperCase(),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: primaryColor,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -796,8 +867,8 @@ class _BattleRoomTile extends StatelessWidget {
   }
 }
 
-class _CoinBadge extends StatelessWidget {
-  const _CoinBadge();
+class CoinBadge extends StatelessWidget {
+  const CoinBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -847,13 +918,15 @@ class _TournamentActionSection extends StatelessWidget {
       stream: TournamentService.joinActionStream(),
       builder: (context, snapshot) {
         final action = snapshot.data;
-        if (action == null) return const SizedBox.shrink();
+        if (action == null) return const SizedBox(height: 32);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            color: Theme.of(context).brightness == Brightness.dark
+        return Padding(
+          padding: const EdgeInsets.only(top: 22, bottom: 26),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              color: Theme.of(context).brightness == Brightness.dark
                 ? cardBackground
                 : Colors.grey.shade100,
             border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
@@ -877,8 +950,8 @@ class _TournamentActionSection extends StatelessWidget {
                     Text(
                       action.title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -909,6 +982,7 @@ class _TournamentActionSection extends StatelessWidget {
                 child: const Text('Join Battles'),
               ),
             ],
+          ),
           ),
         );
       },
