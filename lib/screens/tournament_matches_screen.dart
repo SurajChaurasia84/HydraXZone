@@ -333,7 +333,7 @@ class _BattleSlot extends StatelessWidget {
           subtitle: waiting
               ? 'Waiting for another registered player to join.'
               : live
-                  ? 'Ends in ${_formatDuration(endTime!.difference(now))}'
+                  ? 'Ends in ${_formatDuration(endTime.difference(now))}'
                   : 'Upload window closed',
           opponents: [
             for (final entry in players.entries)
