@@ -1,13 +1,10 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'battle_submission_screen.dart';
+import 'battle_submission_service.dart';
 import 'screen_constants.dart';
-import 'tournament_matches_screen.dart';
-import 'tournament_service.dart';
 
 class BattlesScreen extends StatelessWidget {
   const BattlesScreen({super.key});
@@ -203,171 +200,183 @@ class _TournamentTab extends StatefulWidget {
 }
 
 class _TournamentTabState extends State<_TournamentTab> {
-  Timer? _timer;
-  DateTime _now = DateTime.now();
+  late final Future<BattleSubmissionUser> _userFuture;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+    _userFuture = BattleSubmissionService.currentUserMeta();
   }
 
   @override
   Widget build(BuildContext context) {
-    final cycle = _TournamentCycle.forKind(widget.kind, _now);
-    final countStream = FirebaseFirestore.instance
-        .collection('tournament_registrations')
-        .doc(cycle.id)
-        .collection('participants')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final registrationStream = uid == null
-        ? const Stream<DocumentSnapshot<Map<String, dynamic>>?>.empty()
-        : FirebaseFirestore.instance
-            .collection('tournament_registrations')
-            .doc(cycle.id)
-            .collection('participants')
-            .doc(uid)
-            .snapshots();
+    final cycle = BattleSubmissionService.cycleFor(
+      _mapKind(widget.kind),
+      DateTime.now(),
+    );
+    return FutureBuilder<BattleSubmissionUser>(
+      future: _userFuture,
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (userSnapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Complete your profile to use battles.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+          );
+        }
 
-    return StreamBuilder<int>(
-      stream: countStream,
-      builder: (context, countSnapshot) {
-        final registeredCount = countSnapshot.data ?? 0;
-        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
-          stream: registrationStream,
-          builder: (context, registrationSnapshot) {
-            final isRegistered = registrationSnapshot.data?.exists == true;
-            final buttonLabel = _buttonLabel(
-              kind: widget.kind,
-              isRegistered: isRegistered,
-              isLiveDay: cycle.isLiveDay,
-            );
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              children: [
-                _HeaderCard(
-                  title: widget.title,
-                  subtitle: widget.subtitle,
-                  entryFee: widget.entryFee,
-                  isMega: widget.isMega,
-                ),
-                const SizedBox(height: 16),
-                _CountdownCard(cycle: cycle),
-                const SizedBox(height: 16),
-                if (widget.isMega) ...[
-                  const _MegaRewardPreview(),
-                  const SizedBox(height: 16),
-                ],
-                _InfoCard(
-                  title: 'Rewards',
-                  icon: Icons.workspace_premium_rounded,
-                  child: widget.rewardProducts.isEmpty
-                      ? const _BulletRow(text: 'Winner: 500 coins')
-                      : Column(
+        final user = userSnapshot.data;
+        final registrationStream = user == null
+            ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
+            : BattleSubmissionService.participantStream(
+                cycleId: cycle.id,
+                username: user.username,
+              );
+
+        return StreamBuilder<int>(
+          stream: BattleSubmissionService.registeredCountStream(cycle.id),
+          builder: (context, countSnapshot) {
+            final registeredCount = countSnapshot.data ?? 0;
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: registrationStream,
+              builder: (context, registrationSnapshot) {
+                final isRegistered = registrationSnapshot.data?.exists == true;
+                final buttonLabel = _buttonLabel(
+                  kind: widget.kind,
+                  isRegistered: isRegistered,
+                  isLiveDay: cycle.isLiveDay,
+                );
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                  children: [
+                    _HeaderCard(
+                      title: widget.title,
+                      subtitle: widget.subtitle,
+                      entryFee: widget.entryFee,
+                      isMega: widget.isMega,
+                    ),
+                    const SizedBox(height: 16),
+                    _CountdownCard(
+                      kind: _mapKind(widget.kind),
+                    ),
+                    const SizedBox(height: 16),
+                    if (widget.isMega) ...[
+                      const _MegaRewardPreview(),
+                      const SizedBox(height: 16),
+                    ],
+                    _InfoCard(
+                      title: 'Rewards',
+                      icon: Icons.workspace_premium_rounded,
+                      child: widget.rewardProducts.isEmpty
+                          ? const _BulletRow(text: 'Winner: 500 coins')
+                          : Column(
+                              children: [
+                                for (final reward in widget.rewardProducts) ...[
+                                  _RewardProductCard(product: reward),
+                                  const SizedBox(height: 12),
+                                ],
+                              ],
+                            ),
+                    ),
+                    if (widget.showMatches) ...[
+                      const SizedBox(height: 16),
+                      _InfoCard(
+                        title: 'Match Structure',
+                        icon: Icons.sports_mma_rounded,
+                        child: const Row(
                           children: [
-                            for (final reward in widget.rewardProducts) ...[
-                              _RewardProductCard(product: reward),
-                              const SizedBox(height: 12),
-                            ],
+                            Expanded(child: _MatchPill(label: 'Battle 1')),
+                            SizedBox(width: 10),
+                            Expanded(child: _MatchPill(label: 'Battle 2')),
+                            SizedBox(width: 10),
+                            Expanded(child: _MatchPill(label: 'Battle 3')),
                           ],
                         ),
-                ),
-                if (widget.showMatches) ...[
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    title: 'Match Structure',
-                    icon: Icons.sports_mma_rounded,
-                    child: const Row(
-                      children: [
-                        Expanded(child: _MatchPill(label: 'Battle 1')),
-                        SizedBox(width: 10),
-                        Expanded(child: _MatchPill(label: 'Battle 2')),
-                        SizedBox(width: 10),
-                        Expanded(child: _MatchPill(label: 'Battle 3')),
-                      ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _InfoCard(
+                      title: 'Points System',
+                      icon: Icons.bar_chart_rounded,
+                      child: Column(
+                        children: widget.pointRules
+                            .map(
+                              (rule) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _BulletRow(text: rule),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _InfoCard(
-                  title: 'Points System',
-                  icon: Icons.bar_chart_rounded,
-                  child: Column(
-                    children: widget.pointRules
-                        .map(
-                          (rule) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _BulletRow(text: rule),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _InfoCard(
-                  title: 'Rules',
-                  icon: Icons.rule_rounded,
-                  child: Column(
-                    children: widget.rules
-                        .map(
-                          (rule) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _BulletRow(text: rule),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Text(
-                    '$registeredCount registered',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.7),
-                          fontWeight: FontWeight.w600,
+                    const SizedBox(height: 16),
+                    _InfoCard(
+                      title: 'Rules',
+                      icon: Icons.rule_rounded,
+                      child: Column(
+                        children: widget.rules
+                            .map(
+                              (rule) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _BulletRow(text: rule),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Text(
+                        '$registeredCount registered',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.7),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: user == null
+                          ? null
+                          : _canRegister(
+                              kind: widget.kind,
+                              isRegistered: isRegistered,
+                              isLiveDay: cycle.isLiveDay,
+                            )
+                              ? () => _register(cycle, user, isRegistered)
+                              : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            primaryColor.withValues(alpha: 0.45),
+                        padding: const EdgeInsets.symmetric(vertical: 17),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: _canRegister(
-                    kind: widget.kind,
-                    isRegistered: isRegistered,
-                    isLiveDay: cycle.isLiveDay,
-                  )
-                      ? () => _register(cycle, isRegistered)
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: primaryColor.withValues(alpha: 0.45),
-                    padding: const EdgeInsets.symmetric(vertical: 17),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    buttonLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         );
@@ -410,34 +419,22 @@ class _TournamentTabState extends State<_TournamentTab> {
     };
   }
 
-  Future<void> _register(_TournamentCycle cycle, bool isRegistered) async {
+  Future<void> _register(
+    BattleSubmissionCycle cycle,
+    BattleSubmissionUser user,
+    bool isRegistered,
+  ) async {
     if (isRegistered && (widget.kind == _TournamentKind.daily || cycle.isLiveDay)) {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => TournamentMatchesScreen(
-            title: widget.title,
-            cycleId: cycle.id,
-            liveStart: cycle.liveStart,
-            battleCount: widget.kind == _TournamentKind.daily ? 1 : 3,
+          builder: (_) => BattleSubmissionScreen(
+            cycle: cycle,
           ),
         ),
       );
       return;
     }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Please sign in to register'),
-        ),
-      );
-      return;
-    }
-
     try {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -467,13 +464,9 @@ class _TournamentTabState extends State<_TournamentTab> {
 
       if (confirmed != true || !mounted) return;
 
-      await TournamentService.registerForTournament(
-        cycleId: cycle.id,
-        title: widget.title,
-        type: widget.kind.name,
-        entryFee: widget.entryFee,
-        liveAt: cycle.liveStart,
-        isLiveDay: cycle.isLiveDay,
+      await BattleSubmissionService.joinTournament(
+        cycle: cycle,
+        user: user,
       );
 
       if (!mounted) return;
@@ -484,11 +477,19 @@ class _TournamentTabState extends State<_TournamentTab> {
           content: Text('${widget.title} registration successful'),
         ),
       );
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BattleSubmissionScreen(
+            cycle: cycle,
+          ),
+        ),
+      );
     } on FirebaseException catch (e) {
       if (!mounted) return;
       final message = switch (e.code) {
-        'already-registered' => 'You are already registered for this tournament.',
-        'insufficient-coins' => 'Not enough coins to register.',
+        'already-exists' => 'You already joined this battle cycle.',
+        'insufficient-coins' => 'Not enough coins to join battles.',
+        'username-missing' => 'Set username first to join battles.',
         _ => e.message ?? 'Unable to register right now.',
       };
       ScaffoldMessenger.of(context).showSnackBar(
@@ -499,154 +500,105 @@ class _TournamentTabState extends State<_TournamentTab> {
       );
     }
   }
+
+  BattleSubmissionKind _mapKind(_TournamentKind kind) {
+    return switch (kind) {
+      _TournamentKind.daily => BattleSubmissionKind.daily,
+      _TournamentKind.weekly => BattleSubmissionKind.weekly,
+      _TournamentKind.mega => BattleSubmissionKind.mega,
+    };
+  }
 }
 
 enum _TournamentKind { daily, weekly, mega }
 
-class _TournamentCycle {
-  const _TournamentCycle({
-    required this.id,
-    required this.liveStart,
-    required this.liveEnd,
-    required this.isLiveDay,
-    required this.statusText,
-    required this.countdownText,
+class _CountdownCard extends StatefulWidget {
+  const _CountdownCard({
+    required this.kind,
   });
 
-  final String id;
-  final DateTime liveStart;
-  final DateTime liveEnd;
-  final bool isLiveDay;
-  final String statusText;
-  final String countdownText;
+  final BattleSubmissionKind kind;
 
-  static _TournamentCycle forKind(_TournamentKind kind, DateTime now) {
-    return switch (kind) {
-      _TournamentKind.daily => _daily(now),
-      _TournamentKind.weekly => _weekly(now),
-      _TournamentKind.mega => _mega(now),
-    };
-  }
-
-  static _TournamentCycle _daily(DateTime now) {
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 1));
-    return _TournamentCycle(
-      id: 'daily-${_formatDate(start)}',
-      liveStart: start,
-      liveEnd: end,
-      isLiveDay: true,
-      statusText: 'Live today',
-      countdownText: 'Ends in ${_formatDuration(end.difference(now))}',
-    );
-  }
-
-  static _TournamentCycle _weekly(DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    final daysUntilSunday = (DateTime.sunday - now.weekday) % 7;
-    final isLiveDay = now.weekday == DateTime.sunday;
-    final liveStart = today.add(Duration(days: daysUntilSunday));
-    final activeStart = isLiveDay ? today : liveStart;
-    final activeEnd = activeStart.add(const Duration(days: 1));
-    return _TournamentCycle(
-      id: 'weekly-${_formatDate(activeStart)}',
-      liveStart: activeStart,
-      liveEnd: activeEnd,
-      isLiveDay: isLiveDay,
-      statusText: isLiveDay ? 'Live today' : 'Registration open',
-      countdownText: isLiveDay
-          ? 'Ends in ${_formatDuration(activeEnd.difference(now))}'
-          : 'Live in ${_formatDuration(activeStart.difference(now))}',
-    );
-  }
-
-  static _TournamentCycle _mega(DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    final isLiveDay = now.day == 1 || now.day == 15;
-    final liveStart = _nextMegaLiveDay(today);
-    final activeStart = isLiveDay ? today : liveStart;
-    final activeEnd = activeStart.add(const Duration(days: 1));
-    return _TournamentCycle(
-      id: 'mega-${_formatDate(activeStart)}',
-      liveStart: activeStart,
-      liveEnd: activeEnd,
-      isLiveDay: isLiveDay,
-      statusText: isLiveDay ? 'Live today' : 'Registration open',
-      countdownText: isLiveDay
-          ? 'Ends in ${_formatDuration(activeEnd.difference(now))}'
-          : 'Live in ${_formatDuration(activeStart.difference(now))}',
-    );
-  }
-
-  static DateTime _nextMegaLiveDay(DateTime today) {
-    if (today.day < 15) return DateTime(today.year, today.month, 15);
-    return DateTime(today.year, today.month + 1, 1);
-  }
-
-  static String _formatDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
-  }
-
-  static String _formatDuration(Duration duration) {
-    final safe = duration.isNegative ? Duration.zero : duration;
-    final days = safe.inDays;
-    final hours = safe.inHours.remainder(24).toString().padLeft(2, '0');
-    final minutes = safe.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = safe.inSeconds.remainder(60).toString().padLeft(2, '0');
-    if (days > 0) return '${days}d ${hours}h ${minutes}m';
-    return '${hours}h ${minutes}m ${seconds}s';
-  }
+  @override
+  State<_CountdownCard> createState() => _CountdownCardState();
 }
 
-class _CountdownCard extends StatelessWidget {
-  const _CountdownCard({required this.cycle});
+class _CountdownCardState extends State<_CountdownCard> {
+  late final ValueNotifier<BattleSubmissionCycle> _cycleNotifier;
 
-  final _TournamentCycle cycle;
+  @override
+  void initState() {
+    super.initState();
+    _cycleNotifier = ValueNotifier(
+      BattleSubmissionService.cycleFor(widget.kind, DateTime.now()),
+    );
+    _startTicker();
+  }
+
+  Future<void> _startTicker() async {
+    while (mounted) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      _cycleNotifier.value = BattleSubmissionService.cycleFor(
+        widget.kind,
+        DateTime.now(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _cycleNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: isDark ? cardBackground : Colors.grey.shade100,
-        border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 46,
-            width: 46,
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              cycle.isLiveDay ? Icons.bolt_rounded : Icons.timer_outlined,
-              color: primaryColor,
-            ),
+    return ValueListenableBuilder<BattleSubmissionCycle>(
+      valueListenable: _cycleNotifier,
+      builder: (context, cycle, _) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: isDark ? cardBackground : Colors.grey.shade100,
+            border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  cycle.statusText,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+          child: Row(
+            children: [
+              Container(
+                height: 46,
+                width: 46,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 4),
-                Text(cycle.countdownText),
-              ],
-            ),
+                child: Icon(
+                  cycle.isLiveDay ? Icons.bolt_rounded : Icons.timer_outlined,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cycle.statusText,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(cycle.countdownText),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
