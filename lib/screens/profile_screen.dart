@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -297,6 +298,21 @@ class ProfileScreen extends StatelessWidget {
                           }
                         },
                       ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                        title: const Text(
+                          'Logout',
+                          style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Sign out of your account',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        onTap: () => _showLogoutDialog(context),
+                      ),
                       const SizedBox(height: 28),
                       FutureBuilder<PackageInfo>(
                         future: PackageInfo.fromPlatform(),
@@ -326,6 +342,34 @@ class ProfileScreen extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await FirebaseAuth.instance.signOut();
+              await GoogleSignIn().signOut();
+            },
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
