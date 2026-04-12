@@ -42,6 +42,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentStep = 0;
   bool _isSigningIn = false;
   bool _isSaving = false;
+  bool _isAgeConfirmed = false;
   String? _errorText;
 
   @override
@@ -58,9 +59,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _usernameController = TextEditingController(
       text: widget.existingData?['username'] as String? ?? '',
     );
+    final existingLevel = int.tryParse(widget.existingData?['gameLevel']?.toString() ?? '0') ?? 0;
     _currentStep = _signedInUser == null
         ? 0
-        : ((_selectedGame ?? '').isEmpty || _gameIdController.text.trim().isEmpty)
+        : ((_selectedGame ?? '').isEmpty || _gameIdController.text.trim().isEmpty || existingLevel < 20)
             ? 1
             : 2;
     _pageController = PageController(initialPage: _currentStep);
@@ -108,11 +110,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _errorText = null;
     });
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final googleUser = await GoogleSignIn.instance.authenticate();
       if (googleUser == null) return;
       final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
       final userCredential =
@@ -123,7 +124,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) return;
       setState(() => _signedInUser = user);
       await _goTo(1);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Google Sign-In Error: $e');
       if (!mounted) return;
       setState(() => _errorText = 'Unable to continue with Google.');
     } finally {
@@ -339,44 +341,68 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .72),
               ),
         ),
-        const SizedBox(height: 40),
+        const Spacer(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Checkbox(
+              value: _isAgeConfirmed,
+              onChanged: (val) => setState(() => _isAgeConfirmed = val ?? false),
+              activeColor: primaryColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+            ),
+            const Text(
+              'I am 13+ years old',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF6A38), primaryColor],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x66FF4B11),
-                  blurRadius: 24,
-                  offset: Offset(0, 10),
+          child: Opacity(
+            opacity: _isAgeConfirmed ? 1.0 : 0.6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6A38), primaryColor],
                 ),
-              ],
-            ),
-            child: FilledButton.icon(
-              onPressed: _isSigningIn ? null : _continueWithGoogle,
-              icon: _isSigningIn
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.g_mobiledata, size: 30),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: _isAgeConfirmed
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x66FF4B11),
+                          blurRadius: 24,
+                          offset: Offset(0, 10),
+                        ),
+                      ]
+                    : null,
               ),
-              label: Text(
-                _signedInUser == null ? 'Continue with Google' : 'Continue',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              child: FilledButton.icon(
+                onPressed: (_isSigningIn || !_isAgeConfirmed) ? null : _continueWithGoogle,
+                icon: _isSigningIn
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Image.asset('assets/google_logo.png', height: 18),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                label: Text(
+                  _signedInUser == null ? 'Continue with Google' : 'Continue',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ),
@@ -491,29 +517,46 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _isSaving ? null : _saveGame,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                      Row(
+                        children: [
+                          OutlinedButton(
+                            onPressed: _isSaving ? null : () => _goTo(0),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                                horizontal: 24,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            child: const Text('Previous'),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: _isSaving ? null : _saveGame,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Continue'),
                             ),
                           ),
-                          child: _isSaving
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('Continue'),
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -552,29 +595,46 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ),
         const SizedBox(height: 22),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _isSaving ? null : _finish,
-            style: FilledButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+        Row(
+          children: [
+            OutlinedButton(
+              onPressed: _isSaving ? null : () => _goTo(1),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 24,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: const Text('Previous'),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: _isSaving ? null : _finish,
+                style: FilledButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Finish'),
               ),
             ),
-            child: _isSaving
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Finish'),
-          ),
+          ],
         ),
       ],
     );
