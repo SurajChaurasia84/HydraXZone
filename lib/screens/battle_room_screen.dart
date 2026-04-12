@@ -304,7 +304,7 @@ class _BattleRoomScreenState extends State<BattleRoomScreen> {
     });
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: type == BattleProofType.screenshot ? FileType.image : FileType.video,
       );
       final path = result?.files.single.path;
