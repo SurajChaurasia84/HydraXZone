@@ -46,6 +46,8 @@ class ProfileScreen extends StatelessWidget {
                   }
                   final game = ((data?['game'] as String?) ?? cached['game'] ?? '').trim();
                   final gameId = ((data?['gameId'] as String?) ?? cached['gameId'] ?? '').trim();
+                  final gameLevel =
+                      (data?['gameLevel']?.toString() ?? cached['gameLevel'] ?? '').trim();
                   final username =
                       ((data?['username'] as String?) ?? cached['username'] ?? '').trim();
                   final name = ((data?['name'] as String?) ?? cached['name'] ?? '').trim();
@@ -93,6 +95,26 @@ class ProfileScreen extends StatelessWidget {
                         label: 'Game',
                         value: game.isEmpty ? 'Not set' : game,
                         icon: Icons.sports_esports,
+                        trailing: gameLevel.isEmpty
+                            ? null
+                            : Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: primaryColor.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Lv : $gameLevel',
+                                  style: const TextStyle(
+                                    color: primaryColor,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
                       ),
                       const SizedBox(height: 12),
                       _ProfileInfoTile(

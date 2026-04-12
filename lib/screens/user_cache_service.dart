@@ -7,6 +7,7 @@ class UserCacheService {
   static const _usernameKey = 'user_username';
   static const _gameKey = 'user_game';
   static const _gameIdKey = 'user_game_id';
+  static const _gameLevelKey = 'user_game_level';
 
   static Future<Map<String, String>> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -17,6 +18,7 @@ class UserCacheService {
       'username': prefs.getString(_usernameKey) ?? '',
       'game': prefs.getString(_gameKey) ?? '',
       'gameId': prefs.getString(_gameIdKey) ?? '',
+      'gameLevel': prefs.getString(_gameLevelKey) ?? '',
     };
   }
 
@@ -28,6 +30,9 @@ class UserCacheService {
     await prefs.setString(_usernameKey, (data['username'] as String?) ?? '');
     await prefs.setString(_gameKey, (data['game'] as String?) ?? '');
     await prefs.setString(_gameIdKey, (data['gameId'] as String?) ?? '');
+    if (data.containsKey('gameLevel')) {
+      await prefs.setString(_gameLevelKey, data['gameLevel'].toString());
+    }
   }
 
   static Future<void> clear() async {
@@ -38,5 +43,6 @@ class UserCacheService {
     await prefs.remove(_usernameKey);
     await prefs.remove(_gameKey);
     await prefs.remove(_gameIdKey);
+    await prefs.remove(_gameLevelKey);
   }
 }
