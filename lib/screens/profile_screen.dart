@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'info_content_screen.dart';
@@ -220,22 +221,6 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.group_add_rounded, color: primaryColor),
-                        title: const Text('Refer and Earn'),
-                        subtitle: Text(
-                          'Share and earn 100 coins per friend',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Refer and earn coming soon!')),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.privacy_tip_rounded, color: primaryColor),
                         title: const Text('Privacy Policy'),
                         subtitle: Text(
@@ -326,6 +311,24 @@ class ProfileScreen extends StatelessWidget {
                               ),
                             );
                           }
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.share_rounded, color: primaryColor),
+                        title: const Text('Share App'),
+                        subtitle: Text(
+                          'Invite your friends to join DuelXZone',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        onTap: () async {
+                          final packageInfo = await PackageInfo.fromPlatform();
+                          final packageName = packageInfo.packageName;
+                          final shareText = 'Hey! Join me on DuelXZone and participate in exciting battles. Download now: https://play.google.com/store/apps/details?id=$packageName';
+                          
+                          await Share.share(shareText);
                         },
                       ),
                       ListTile(
