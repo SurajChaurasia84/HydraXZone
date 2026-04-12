@@ -236,7 +236,7 @@ class ProfileScreen extends StatelessWidget {
                           } else {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open link')),
+                              const SnackBar(content: Text('Unable to open link')),
                             );
                           }
                         },
