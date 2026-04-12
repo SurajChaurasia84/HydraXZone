@@ -9,6 +9,7 @@ import 'coin_service.dart';
 import 'leaderboard_screen.dart';
 import 'navigation_controller.dart';
 import 'screen_constants.dart';
+import 'notification_screen.dart';
 import 'tournament_matches_screen.dart';
 import 'tournament_service.dart';
 import 'user_cache_service.dart';
@@ -230,7 +231,20 @@ class _HomeScreenState extends State<HomeScreen> {
               appBar: AppBar(
                 titleSpacing: 20,
                 title: _TopBarTitle(username: username, photoUrl: photoUrl),
-                actions: const [CoinBadge(), SizedBox(width: 16)],
+                actions: [
+                  IconButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.notifications_none_rounded),
+                  ),
+                  const CoinBadge(),
+                  const SizedBox(width: 16),
+                ],
               ),
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
