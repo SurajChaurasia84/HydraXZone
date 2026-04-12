@@ -17,6 +17,7 @@ import 'screen_constants.dart';
 import 'status_screen.dart';
 import 'system_ui.dart';
 import 'theme_controller.dart';
+import '../services/notification_service.dart';
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -391,6 +392,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    NotificationService.initNotifications();
     AppTabController.currentIndex.addListener(_handleTabChange);
   }
 
