@@ -362,7 +362,7 @@ class ProfileScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(context);
               await FirebaseAuth.instance.signOut();
-              await GoogleSignIn().signOut();
+              await GoogleSignIn.instance.signOut();
             },
             child: const Text(
               'Logout',
