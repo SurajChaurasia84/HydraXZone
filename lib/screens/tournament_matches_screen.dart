@@ -150,7 +150,7 @@ class _TournamentMatchesScreenState extends State<TournamentMatchesScreen> {
     });
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: type == TournamentProofType.screenshot ? FileType.image : FileType.video,
       );
       final path = result?.files.single.path;
