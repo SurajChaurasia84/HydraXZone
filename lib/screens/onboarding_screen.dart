@@ -34,6 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   late final PageController _pageController;
   late final TextEditingController _gameIdController;
+  late final TextEditingController _gameLevelController;
   late final TextEditingController _usernameController;
 
   User? _signedInUser;
@@ -50,6 +51,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _selectedGame = widget.existingData?['game'] as String?;
     _gameIdController = TextEditingController(
       text: widget.existingData?['gameId'] as String? ?? '',
+    );
+    _gameLevelController = TextEditingController(
+      text: widget.existingData?['gameLevel']?.toString() ?? '',
     );
     _usernameController = TextEditingController(
       text: widget.existingData?['username'] as String? ?? '',
@@ -130,10 +134,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _saveGame() async {
     final user = FirebaseAuth.instance.currentUser;
     final gameId = _gameIdController.text.trim();
-    if (user == null || _selectedGame == null || gameId.isEmpty) {
-      setState(() => _errorText = 'Select a game and enter your game ID.');
+    final levelStr = _gameLevelController.text.trim();
+    final level = int.tryParse(levelStr);
+
+    if (user == null || _selectedGame == null || gameId.isEmpty || levelStr.isEmpty) {
+      setState(() => _errorText = 'Select a game, enter ID and Level.');
       return;
     }
+
+    if (level == null || level < 20) {
+      setState(() => _errorText = 'Minimum level 20 required to continue.');
+      return;
+    }
+
     setState(() {
       _isSaving = true;
       _errorText = null;
@@ -142,10 +155,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'game': _selectedGame,
         'gameId': gameId,
+        'gameLevel': level,
       }, SetOptions(merge: true));
       await UserCacheService.save({
         'game': _selectedGame,
         'gameId': gameId,
+        'gameLevel': level,
       });
       if (!mounted) return;
       await _goTo(2);
@@ -227,6 +242,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void dispose() {
     _pageController.dispose();
     _gameIdController.dispose();
+    _gameLevelController.dispose();
     _usernameController.dispose();
     super.dispose();
   }
@@ -417,7 +433,64 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           prefixIcon: const Icon(Icons.badge_outlined),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+                      ValueListenableBuilder(
+                        valueListenable: _gameLevelController,
+                        builder: (context, value, child) {
+                          final level = int.tryParse(value.text);
+                          final isInvalid = level != null && level < 20;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _gameLevelController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: '${_selectedGame!} Level',
+                                  prefixIcon: const Icon(Icons.show_chart),
+                                  focusedBorder: isInvalid
+                                      ? OutlineInputBorder(
+                                          borderSide: const BorderSide(
+                                            color: Colors.red,
+                                            width: 1.5,
+                                          ),
+                                          borderRadius: BorderRadius.circular(16),
+                                        )
+                                      : null,
+                                  enabledBorder: isInvalid
+                                      ? OutlineInputBorder(
+                                          borderSide: const BorderSide(
+                                            color: Colors.red,
+                                            width: 1.0,
+                                          ),
+                                          borderRadius: BorderRadius.circular(16),
+                                        )
+                                      : null,
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                              if (isInvalid) ...[
+                                const SizedBox(height: 6),
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    'required minimum level 20 to continue',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
@@ -665,6 +738,11 @@ bool isProfileComplete(Map<String, dynamic>? data) {
   if (data == null) return false;
   final game = (data['game'] as String?)?.trim() ?? '';
   final gameId = (data['gameId'] as String?)?.trim() ?? '';
+  final gameLevel = data['gameLevel'];
   final username = (data['username'] as String?)?.trim() ?? '';
-  return game.isNotEmpty && gameId.isNotEmpty && username.isNotEmpty;
+  return game.isNotEmpty &&
+      gameId.isNotEmpty &&
+      username.isNotEmpty &&
+      gameLevel != null &&
+      (gameLevel is int ? gameLevel >= 20 : (int.tryParse(gameLevel.toString()) ?? 0) >= 20);
 }
