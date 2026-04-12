@@ -286,7 +286,7 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         onTap: () async {
-                          final uri = Uri.parse('mailto:support@duelxzone.com?subject=Support Request');
+                          final uri = Uri.parse('mailto:supportduelXZone@gmail.com?subject=Support Request');
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
                           } else {
