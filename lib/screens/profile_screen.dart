@@ -230,9 +230,9 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         onTap: () async {
-                          final uri = Uri.parse('https://example.com/privacy-policy');
+                          final uri = Uri.parse('https://docs.google.com/document/d/12C_QloFvNJfYhn2Zr-c0eD0vMGYoQn4CQaAae1A0JBs/edit?usp=sharing');
                           if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
                           } else {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
