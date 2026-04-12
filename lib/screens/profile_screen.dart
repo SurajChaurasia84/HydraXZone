@@ -198,6 +198,8 @@ class ProfileScreen extends StatelessWidget {
                                     title: 'Match Conduct',
                                     content: [
                                       'Ensure a stable internet connection before joining a battle.',
+                                      'Only Solo Arena matches are accepted. Duo or Squad matches are strictly prohibited.',
+                                      'Playing in a Duo/Squad will result in rejection of the submission and zero rewards.',
                                       'Quitting a match early may result in zero rewards and loss of entry fee.',
                                       'Respect all players and maintain a healthy gaming environment.',
                                     ],
@@ -309,13 +311,19 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                         onTap: () async {
-                          final uri = Uri.parse('mailto:supportduelXZone@gmail.com?subject=Support Request');
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri);
-                          } else {
+                          final uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+                          final encodedSubject = Uri.encodeComponent('Support Request: $username ($uid)');
+                          final uri = Uri.parse('mailto:supportduelXZone@gmail.com?subject=$encodedSubject');
+                          try {
+                            // Try launching directly, as canLaunchUrl is sometimes unreliable on Android 11+
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open email app')),
+                              const SnackBar(
+                                content: Text('Could not open email app. Please mail to supportduelXZone@gmail.com'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
                             );
                           }
                         },
