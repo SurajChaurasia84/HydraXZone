@@ -186,14 +186,14 @@ class _BattleSubmissionScreenState extends State<BattleSubmissionScreen> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
+    final result = await FilePicker.pickFiles(type: FileType.image);
     final path = result?.files.single.path;
     if (path == null) return;
     setState(() => _imagePath = path);
   }
 
   Future<void> _pickVideo() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.video);
+    final result = await FilePicker.pickFiles(type: FileType.video);
     final path = result?.files.single.path;
     if (path == null) return;
     setState(() => _videoPath = path);
