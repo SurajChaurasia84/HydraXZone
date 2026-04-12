@@ -17,17 +17,20 @@ class BattlesScreen extends StatelessWidget {
     'Rank 6-10 = 5 points',
     'Rank 11-20 = 3 points',
     'Rank 21+ = 1 point',
+    // 'Solo Arena match only (Duo/Squad matches are invalid)',
     'Final score = sum of all 3 matches',
   ];
   static const _dailyRules = [
     'Entry fee: 50 coins',
     'Winner reward: 500 coins',
+    'Solo Arena match only (No Duo/Squad)',
     'Single match with random players',
     'One user can participate only once per tournament',
   ];
   static const _weeklyRules = [
     'Entry fee: 500 coins',
     'Weekly battles go live every Sunday',
+    'Solo Arena matches only (No Duo/Squad allowed)',
     'Other days are only for participation and registration',
     'Total 3 matches: Battle 1, Battle 2, Battle 3',
     'Final rank based on total points from all 3 matches',
@@ -37,6 +40,7 @@ class BattlesScreen extends StatelessWidget {
   static const _megaRules = [
     'Entry fee: 1000 coins',
     'Mega tournament goes live on the 1st and 15th day of every month',
+    'Solo Arena matches only (Duo/Squad = No reward)',
     'Other days are only for participation and registration',
     'Total 3 matches: Battle 1, Battle 2, Battle 3',
     'Final rank based on total points from all 3 matches',
@@ -259,6 +263,8 @@ class _TournamentTabState extends State<_TournamentTab> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                   children: [
+                    const _SoloOnlyBanner(),
+                    const SizedBox(height: 16),
                     _HeaderCard(
                       title: widget.title,
                       subtitle: widget.subtitle,
@@ -807,9 +813,9 @@ class _InfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
         color: isDark ? cardBackground : Colors.grey.shade100,
-        border: Border.all(color: primaryColor.withValues(alpha: 0.12)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -836,6 +842,49 @@ class _InfoCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           child,
+        ],
+      ),
+    );
+  }
+}
+
+class _SoloOnlyBanner extends StatelessWidget {
+  const _SoloOnlyBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 24),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SOLO ARENA MATCH ONLY',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Only personal solo matches are accepted. Playing in a Duo or Squad will lead to rejected rewards.',
+                  style: TextStyle(fontSize: 13, height: 1.3),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
