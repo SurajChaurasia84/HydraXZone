@@ -151,7 +151,7 @@ class BattlesScreen extends StatelessWidget {
                   rankLabel: 'Rank 1',
                   title: 'Boat earbuds',
                   assetPath: 'assets/boat.jpg',
-                  amazonUrl: 'https://amzn.to/4dzDb2E',
+                  amazonUrl: 'https://amzn.to/47YUVko',
                 ),
                 _RewardProduct(
                   rankLabel: 'Rank 2',
